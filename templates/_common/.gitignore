@@ -1,0 +1,26 @@
+node_modules
+dist
+build
+.DS_Store
+*.log
+
+# Build output
+build-storybook/
+storybook-static/
+
+# Test output
+playwright-report/
+test-results/
+coverage/
+.vitest
+
+# Local env + executor state
+.env
+.env.local
+.run/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea

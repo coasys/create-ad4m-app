@@ -1,0 +1,6 @@
+packages:
+  - 'packages/*'
+# Note: templates/* are intentionally NOT pnpm workspace members.
+# They are scaffolded into fresh user projects by the CLI; treating
+# them as workspace members would resolve their @coasys/ad4m deps to
+# the wrong workspace root.

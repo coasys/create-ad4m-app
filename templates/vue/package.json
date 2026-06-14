@@ -1,0 +1,51 @@
+{
+  "name": "__APP_NAME__",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "check": "vue-tsc --noEmit && oxlint",
+    "test": "playwright test",
+    "test:unit": "vitest run",
+    "lint": "oxlint --fix",
+    "format": "oxfmt --write",
+    "ad4m:init": "bin/ad4m init",
+    "ad4m:start": "bin/ad4m start",
+    "ad4m:stop": "bin/ad4m stop",
+    "ad4m:restart": "bin/ad4m restart",
+    "ad4m:status": "bin/ad4m status",
+    "ad4m:logs": "bin/ad4m logs",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@coasys/ad4m": "link:../ad4m/core",
+    "@coasys/ad4m-connect": "link:../ad4m/connect",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@tailwindcss/vite": "^4.2.2",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "oxfmt": "^0.43.0",
+    "oxlint": "^1.58.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.6.0",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.2",
+    "vue-tsc": "^2.2.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,vue}": [
+      "oxlint --fix",
+      "oxfmt --write"
+    ],
+    "*.{json,css,md,html}": [
+      "oxfmt --write"
+    ]
+  }
+}

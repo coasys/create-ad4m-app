@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+.turbo
+*.log
+.DS_Store
+
+# Local scaffolding sandboxes
+.tmp
+.scratch

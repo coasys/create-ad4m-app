@@ -1,0 +1,18 @@
+{
+  "name": "create-ad4m-app-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build:cli": "pnpm --filter create-ad4m-app build",
+    "dev:cli": "pnpm --filter create-ad4m-app dev",
+    "test:scaffold": "node ./scripts/test-scaffold.mjs",
+    "lint": "oxlint --fix",
+    "format": "oxfmt --write"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.43.0",
+    "oxlint": "^1.58.0"
+  }
+}

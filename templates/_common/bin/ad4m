@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# ad4m — executor lifecycle helper for a scaffolded create-ad4m-app project.
+#
+# Reads .env from the project root. Manages a *dedicated* data path
+# per app (default: ~/.ad4m-<app-name>/) so multiple AD4M apps can
+# coexist without stomping on each other's perspectives, agent keys,
+# or settings.
+#
+# Subcommands:
+#   init     — initialise the data path (idempotent; safe to re-run)
+#   start    — start the executor in the background; first run also
+#              generates the master agent
+#   stop     — stop the executor
+#   restart  — stop + start
+#   status   — print PID + port + state
+#   logs     — tail the executor log
+#
+# Env vars (read from .env):
+#   AD4M_CLI_PATH         Path to ad4m-executor binary (required)
+#   AD4M_DATA_PATH        Per-app data dir (default: ~/.ad4m-$APP_NAME)
+#   AD4M_PORT             API port (default: 12000)
+#   AD4M_AGENT_PASSPHRASE Passphrase for the master agent (required on first start)
+#   MULTI_USER            "true" to start with --enable-multi-user
+#
+# Exit codes are reliable here; the AD4M CLI's `agent generate` /
+# `agent status` commands have a deserialization bug that exits
+# non-zero on success, so this script detects agent existence by
+# checking $AD4M_DATA_PATH/ad4m/agent.json directly.
+
+set -euo pipefail
+
+# ─── Resolve project root + .env ────────────────────────────────────────────
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="$PROJECT_ROOT/.env"
+
+if [[ -f "$ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    set -a; source "$ENV_FILE"; set +a
+fi
+
+APP_NAME="$(jq -r '.name // "app"' "$PROJECT_ROOT/package.json" 2>/dev/null || echo "app")"
+
+AD4M_CLI_PATH="${AD4M_CLI_PATH:-}"
+AD4M_DATA_PATH="${AD4M_DATA_PATH:-$HOME/.ad4m-$APP_NAME}"
+AD4M_PORT="${AD4M_PORT:-12000}"
+AD4M_AGENT_PASSPHRASE="${AD4M_AGENT_PASSPHRASE:-}"
+MULTI_USER="${MULTI_USER:-false}"
+
+RUN_DIR="$PROJECT_ROOT/.run"
+PID_FILE="$RUN_DIR/executor.pid"
+LOG_FILE="$RUN_DIR/executor.log"
+
+mkdir -p "$RUN_DIR"
+
+# ─── Helpers ────────────────────────────────────────────────────────────────
+
+err() { echo "ad4m: $*" >&2; exit 1; }
+
+require_cli() {
+    [[ -n "$AD4M_CLI_PATH" ]] || err "AD4M_CLI_PATH is not set (check $ENV_FILE)"
+    [[ -x "$AD4M_CLI_PATH" ]] || err "AD4M_CLI_PATH '$AD4M_CLI_PATH' is not executable"
+}
+
+is_running() {
+    [[ -f "$PID_FILE" ]] || return 1
+    local pid
+    pid="$(cat "$PID_FILE")"
+    [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+
+wait_for_api() {
+    local timeout="${1:-30}"
+    local elapsed=0
+    while ! grep -q "API server starting" "$LOG_FILE" 2>/dev/null; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        if [[ $elapsed -ge $timeout ]]; then
+            err "Timed out waiting for executor API. See $LOG_FILE"
+        fi
+    done
+}
+
+agent_exists() {
+    [[ -f "$AD4M_DATA_PATH/ad4m/agent.json" ]]
+}
+
+# ─── Subcommands ────────────────────────────────────────────────────────────
+
+cmd_init() {
+    require_cli
+    if [[ -f "$AD4M_DATA_PATH/last-seen-version" ]]; then
+        echo "ad4m: data path already initialised at $AD4M_DATA_PATH"
+        return 0
+    fi
+    mkdir -p "$AD4M_DATA_PATH"
+    echo "ad4m: initialising data path at $AD4M_DATA_PATH"
+    "$AD4M_CLI_PATH" init --data-path "$AD4M_DATA_PATH"
+    echo "ad4m: ✓ initialised"
+}
+
+cmd_start() {
+    require_cli
+    if is_running; then
+        echo "ad4m: already running (pid $(cat "$PID_FILE"))"
+        return 0
+    fi
+    [[ -f "$AD4M_DATA_PATH/last-seen-version" ]] || cmd_init
+
+    local args=(
+        run
+        --port "$AD4M_PORT"
+        --app-data-path "$AD4M_DATA_PATH"
+    )
+    if [[ "$MULTI_USER" == "true" ]]; then
+        args+=(--enable-multi-user true)
+    fi
+
+    echo "ad4m: starting executor on port $AD4M_PORT (data: $AD4M_DATA_PATH)"
+    : > "$LOG_FILE"
+    nohup "$AD4M_CLI_PATH" "${args[@]}" >>"$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE"
+    wait_for_api 30
+
+    if ! agent_exists; then
+        [[ -n "$AD4M_AGENT_PASSPHRASE" ]] || err "AD4M_AGENT_PASSPHRASE required for first-run agent generation"
+        echo "ad4m: generating master agent…"
+        # CLI exits non-zero on success due to a deserialization bug;
+        # we detect success by checking for agent.json.
+        "$AD4M_CLI_PATH" agent generate -p "$AD4M_AGENT_PASSPHRASE" 2>/dev/null || true
+        for _ in {1..10}; do
+            agent_exists && break
+            sleep 1
+        done
+        agent_exists || err "agent.json was not created after `agent generate` — check $LOG_FILE"
+        echo "ad4m: ✓ master agent generated"
+    fi
+
+    echo "ad4m: ✓ running (pid $(cat "$PID_FILE"), port $AD4M_PORT)"
+}
+
+cmd_stop() {
+    if ! is_running; then
+        echo "ad4m: not running"
+        rm -f "$PID_FILE"
+        return 0
+    fi
+    local pid
+    pid="$(cat "$PID_FILE")"
+    echo "ad4m: stopping (pid $pid)"
+    kill "$pid" || true
+    for _ in {1..10}; do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 1
+    done
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" || true
+    rm -f "$PID_FILE"
+    echo "ad4m: ✓ stopped"
+}
+
+cmd_restart() {
+    cmd_stop
+    cmd_start
+}
+
+cmd_status() {
+    if is_running; then
+        local pid
+        pid="$(cat "$PID_FILE")"
+        echo "ad4m: running (pid $pid, port $AD4M_PORT, data $AD4M_DATA_PATH)"
+        agent_exists && echo "ad4m: ✓ master agent present" || echo "ad4m: ⚠ master agent missing"
+    else
+        echo "ad4m: not running"
+    fi
+}
+
+cmd_logs() {
+    [[ -f "$LOG_FILE" ]] || err "no log at $LOG_FILE"
+    tail -f "$LOG_FILE"
+}
+
+# ─── Dispatch ───────────────────────────────────────────────────────────────
+
+case "${1:-status}" in
+    init)    cmd_init ;;
+    start)   cmd_start ;;
+    stop)    cmd_stop ;;
+    restart) cmd_restart ;;
+    status)  cmd_status ;;
+    logs)    cmd_logs ;;
+    *)
+        echo "Usage: bin/ad4m {init|start|stop|restart|status|logs}"
+        exit 1
+        ;;
+esac

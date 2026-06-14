@@ -1,0 +1,31 @@
+{
+  "name": "create-ad4m-app",
+  "version": "0.1.0",
+  "description": "Scaffold an AD4M app with your choice of framework, UI library, and extras",
+  "type": "module",
+  "bin": {
+    "create-ad4m-app": "./bin/create-ad4m-app.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --target node20 --clean --no-splitting --out-dir dist"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.7.0",
+    "picocolors": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
