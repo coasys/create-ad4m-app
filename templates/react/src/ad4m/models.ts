@@ -3,8 +3,9 @@
  *
  * Demonstrates the SDNA model pattern — properties declared with
  * `@Property` are persisted as link triples in the underlying
- * Perspective, with their values stored via the `literal://`
- * Expression Language.
+ * Perspective, with their values stored via the `literal:`
+ * Expression Language (note: `literal:` — no slashes; the
+ * `literal://` form was removed and now throws).
  *
  * Adding a property here automatically extends the SDNA contract:
  * the runtime adds the corresponding SHACL shape and the field is

@@ -56,7 +56,7 @@ The app expects an **AD4M executor** running on your machine. Install the [AD4M 
 1. **Connect** via `@coasys/ad4m-connect` — opens the capability popup, stores a JWT, returns an `Ad4mClient`.
 2. **Identify** — fetches the agent DID via `client.agent.me()` and displays it.
 3. **Provision a Perspective** — ensures a `Scratch` Perspective exists (creates one if not).
-4. **Define a model** — `Note` extends `Ad4mModel` with `@Property` decorators (`body`, `createdAt`); each property is a link triple resolved through the `literal://` Expression Language.
+4. **Define a model** — `Note` extends `Ad4mModel` with `@Property` decorators (`body`, `createdAt`); each property is a link triple resolved through the `literal:` Expression Language.
 5. **Write + read** — `createNote` / `listNotes` persist into and query the Perspective. Reactivity updates the UI on each successful write.
 
 Edit `src/ad4m/models.ts` to extend the schema, or `src/App.tsx` to redesign the surface.
